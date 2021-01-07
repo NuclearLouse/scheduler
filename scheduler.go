@@ -87,12 +87,19 @@ func (w weekly) nextRun() (time.Duration, error) {
 	now := time.Now()
 	year, month, day := now.Date()
 	numDays := w.day - now.Weekday()
-	if numDays == 0 {
-		numDays = 7
-	} else if numDays < 0 {
+	if numDays < 0 {
 		numDays += 7
 	}
+	// if numDays == 0 {
+	// 	numDays = 7
+	// } else if numDays < 0 {
+	// 	numDays += 7
+	// }
 	date := time.Date(year, month, day+int(numDays), w.d.hour, w.d.min, w.d.sec, 0, time.Local)
+	if now.After(date) {
+		date = time.Date(year, month, day+7, w.d.hour, w.d.min, w.d.sec, 0, time.Local)
+	}
+	// fmt.Printf("Next Run: %s\n", date.Format("02.01.2006 15:04:05"))
 	return date.Sub(now), nil
 }
 
