@@ -11,6 +11,7 @@
 //    scheduler.Every(5).Seconds().Run(function)
 //    scheduler.Every().Day().Run(function)
 //    scheduler.Every().Sunday().At("08:30").Run(function)
+//    scheduler.Every().DayOfMonth(31).At("13:25:56").Run(function)
 //  }
 package scheduler
 
@@ -95,6 +96,30 @@ func (w weekly) nextRun() (time.Duration, error) {
 	return date.Sub(now), nil
 }
 
+type monthly struct {
+	day int
+	d   daily
+}
+
+func (m monthly) nextRun() (time.Duration, error) {
+	now := time.Now()
+	year, month, day := now.Date()
+	numDays := m.day - day
+	switch {
+	case numDays == 0, numDays > 0:
+		numDays = m.day
+	case numDays < 0:
+		numDays = day + (-1 * numDays)
+	}
+	date := time.Date(year, month, numDays, m.d.hour, m.d.min, m.d.sec, 0, time.Local)
+	if now.After(date) {
+		month++
+		date = time.Date(year, month, numDays, m.d.hour, m.d.min, m.d.sec, 0, time.Local)
+	}
+	// fmt.Printf("Next Run: %s\n", date.Format("02.01.2006 15:04:05"))
+	return date.Sub(now), nil
+}
+
 // Every defines when to run a job. For a recurrent jobs (n seconds/minutes/hours) you
 // should specify the unit and then call to the correspondent period method.
 func Every(times ...int) *Job {
@@ -143,7 +168,13 @@ func (j *Job) At(hourTime string) *Job {
 	if !ok {
 		w, ok := j.schedule.(weekly)
 		if !ok {
-			j.err = errors.New("bad function chaining")
+			m, ok := j.schedule.(monthly)
+			if !ok {
+				j.err = errors.New("bad function chaining")
+				return j
+			}
+			m.d.setTime(hour, min, sec)
+			j.schedule = m
 			return j
 		}
 		w.d.setTime(hour, min, sec)
@@ -324,4 +355,13 @@ func (j *Job) IsRunning() bool {
 	j.RLock()
 	defer j.RUnlock()
 	return j.isRunning
+}
+
+// DayOfMonth sets the job to run every day.
+func (j *Job) DayOfMonth(day int) *Job {
+	if j.schedule != nil {
+		j.err = errors.New("bad function chaining")
+	}
+	j.schedule = monthly{day: day}
+	return j
 }
